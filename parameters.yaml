@@ -3,7 +3,7 @@ learning:
     batch_size: 1000
     learning_rate: 0.0002
 model:
-    light_control_points: 400
+    light_control_points: 100
     epsilon: 0.00001
     delta: 0.05
     validity_range:

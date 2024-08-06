@@ -114,17 +114,6 @@ def add_grey(image):
     grey_image = Image.alpha_composite(image.convert('RGBA'), grey_overlay)
     return grey_image
 
-def draw_bounding_box(image, mask):
-    width, height = image.size
-    w = int(min(width,height)*0.005)
-    u_mask, v_mask = numpy.where(mask)
-    new_image = image.convert('RGBA')
-    u_min,u_max,v_min,v_max = numpy.min(u_mask),numpy.max(u_mask),numpy.min(v_mask),numpy.max(v_mask)
-    draw = ImageDraw.Draw(new_image)
-    draw.rectangle([(v_min,u_min),(v_max,u_max)],width=w,fill=(0, 255, 0))
-    return new_image
-
-
 
 def stick_images(image1, image2):
     width1, height1 = image1.size

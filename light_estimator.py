@@ -14,27 +14,37 @@ from heliosmini import IO
 from heliosmini import least_squares
 from heliosmini import model
 from heliosmini import gradient
+from heliosmini import grids
 
 
-parameters_path = '/home/bcoupry/Work/HeliosMini/parameters.yaml'
+parameters_path = '/home/bcoupry/Work/HeliosMiniPS/parameters.yaml'
 data_path = '/media/bcoupry/T7 Shield/HeadMVPS/data/PS_DOME/msr_mini/'
 out_path = '/media/bcoupry/T7 Shield/HeadMVPS/result/HeliosMini'
+
+images_files_list = glob.glob(os.path.join(data_path,'[0-9]*.png'))
+
 
 with open(parameters_path, 'r') as file:
     meta_parameters = yaml.safe_load(file)
 
-images_files_list = glob.glob(os.path.join(data_path,'[0-9]*.png'))
-mask = IO.to_mask(IO.image_to_array(Image.open(os.path.join(data_path,'mask.png'))))
-input_normalmap = IO.rgb_to_r3(IO.image_to_array(Image.open(os.path.join(data_path,'normals.png'))))
-images = numpy.stack(list(map(lambda i : IO.image_to_array(Image.open(i)),images_files_list)),axis=-1)
+with Image.open(os.path.join(data_path,'mask.png')) as imask:
+    mask = IO.to_mask(IO.image_to_array(imask))
+
+with Image.open(os.path.join(data_path,'normals.png')) as inmap:
+    input_normalmap = IO.rgb_to_r3(IO.image_to_array(inmap))
+
+images_list = []
+for path in images_files_list:
+    with Image.open(path) as ii:
+        images_list.append(IO.image_to_array(ii)) 
+images = numpy.stack(images_list,axis=-1)
+
 
 N,I = jax.numpy.asarray(input_normalmap[mask]), jax.numpy.asarray(images[mask])
-(nu,nv),(npix,nc,nl) = mask.shape, I.shape
+(npix,nc,nl) = I.shape
 
 u_mask, v_mask = jax.numpy.where(mask)
-nlv = int(numpy.sqrt(meta_parameters['model']['light_control_points']/(nu/nv)))
-nlu = int(numpy.sqrt(meta_parameters['model']['light_control_points']*(nu/nv)))
-grid = jax.numpy.linspace(0,nu-1,nlu),jax.numpy.linspace(0,nv-1,nlv)
+grid = grids.grid_over_mask(mask,meta_parameters['model']['light_control_points'])
 
 rho_init = jax.numpy.median(I,axis=-1)
 L_lstsq = least_squares.quadratic_light(rho_init,N,I)
@@ -55,7 +65,7 @@ partial_value_and_grad = functools.partial(model.stochastic_value_and_grad,npix=
 
 max_rho = jax.numpy.maximum(jax.numpy.max(rho),jax.numpy.max(rho_init))
 max_flux = jax.numpy.max(vector_tools.norm_vector(L0, meta_parameters['model']['epsilon'])[0])
-IO.draw_bounding_box(IO.draw_grid(IO.add_grey(IO.array_to_image(vector_tools.build_masked(mask,I[:,:,0]))),grid[1],grid[0]),mask).save(os.path.join(out_path,'grid.png'))
+IO.draw_grid(IO.add_grey(IO.array_to_image(vector_tools.build_masked(mask,I[:,:,0]))),grid[1],grid[0]).save(os.path.join(out_path,'grid.png'))
 IO.crop_mask(IO.array_to_image(vector_tools.build_masked(mask,jax.numpy.mean(validity_mask,axis=-1))),mask).save(os.path.join(out_path,'validity.png'))
 IO.crop_mask(IO.array_to_image(vector_tools.build_masked(mask,rho_init/max_rho)),mask).save(os.path.join(out_path,'rho_init.png'))
 IO.crop_mask(IO.array_to_image(vector_tools.build_masked(mask,rho/max_rho)),mask).save(os.path.join(out_path,'rho_result.png'))
