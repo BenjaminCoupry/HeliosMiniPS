@@ -1,0 +1,11 @@
+learning:
+    steps: 50000
+    batch_size: 1000
+    learning_rate: 0.0002
+model:
+    light_control_points: 400
+    epsilon: 0.00001
+    delta: 0.05
+    validity_range:
+        min: 0.03
+        max: 1
