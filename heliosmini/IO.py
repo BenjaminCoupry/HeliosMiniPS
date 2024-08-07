@@ -109,9 +109,11 @@ def crop_mask(image, mask):
     croped_image = image.crop((v_min,u_min,v_max,u_max))
     return croped_image
 
-def add_grey(image):
+def add_grey(image, binary_mask):
     grey_overlay = Image.new('RGBA', image.size, (128, 128, 128, 128))
-    grey_image = Image.alpha_composite(image.convert('RGBA'), grey_overlay)
+    transparent_overlay = Image.new('RGBA', image.size, (0, 0, 0, 0))
+    overlay = Image.composite(grey_overlay,transparent_overlay,array_to_image(binary_mask).convert('L'))
+    grey_image = Image.alpha_composite(image.convert('RGBA'), overlay)
     return grey_image
 
 

@@ -6,6 +6,7 @@ import numpy
 import jax
 import optax
 import functools
+import time
 
 from PIL import Image
 
@@ -24,6 +25,8 @@ out_path = '/media/bcoupry/T7 Shield/HeadMVPS/result/HeliosMini'
 images_files_list = glob.glob(os.path.join(data_path,'[0-9]*.png'))
 
 
+######################
+t0 = time.time()
 with open(parameters_path, 'r') as file:
     meta_parameters = yaml.safe_load(file)
 
@@ -39,39 +42,67 @@ for path in images_files_list:
         images_list.append(IO.image_to_array(ii)) 
 images = numpy.stack(images_list,axis=-1)
 
+t1 = time.time()
+loading_time = t1-t0
 
+
+######################
+t0 = time.time()
 N,I = jax.numpy.asarray(input_normalmap[mask]), jax.numpy.asarray(images[mask])
 (npix,nc,nl) = I.shape
 
-u_mask, v_mask = jax.numpy.where(mask)
+(u_mask, v_mask), (nu, nv) = jax.numpy.where(mask), mask.shape
 grid = grids.grid_over_mask(mask,meta_parameters['model']['light_control_points'])
-
-rho_init = jax.numpy.median(I,axis=-1)
-L_lstsq = least_squares.quadratic_light(rho_init,N,I)
-L0_init = jax.numpy.zeros((jax.numpy.size(grid[0]),jax.numpy.size(grid[1]),nl,3)).at[...,:,:].set(L_lstsq)
+relative_grid_u, relative_grid_v = grid[0]/nu, grid[1]/nv
 
 I_grey = jax.numpy.mean(I,axis=1)
 validity_mask = jax.numpy.logical_and(I_grey>=meta_parameters['model']['validity_range']['min'],I_grey<=meta_parameters['model']['validity_range']['max'])
+t1 = time.time()
+preparation_time = t1-t0
 
+
+######################
+t0 = time.time()
+rho_init = jax.numpy.median(I,axis=-1)
+L_lstsq = least_squares.quadratic_light(rho_init,N,I)
+L0_init = jax.numpy.zeros((jax.numpy.size(grid[0]),jax.numpy.size(grid[1]),nl,3)).at[...,:,:].set(L_lstsq)
+t1 = time.time()
+first_estimation_time = t1-t0
+
+
+######################
+t0 = time.time()
 rng = jax.random.PRNGKey(0)
 optimizer = optax.adam(meta_parameters['learning']['learning_rate'])
 kwargs = {'N':N, 'I':I, 'validity_mask':validity_mask[:,None,:],'grid':grid, 'u_mask':u_mask, 'v_mask':v_mask, 'epsilon': meta_parameters['model']['epsilon'], 'delta':meta_parameters['model']['delta']}
 partial_value_and_grad = functools.partial(model.stochastic_value_and_grad,npix= npix, batch_size=meta_parameters['learning']['batch_size'])
 (L0,rho), (rng,), losses = gradient.gradient_descent(optimizer, partial_value_and_grad, (L0_init,rho_init), (rng,), meta_parameters['learning']['steps'], **kwargs)
+t1 = time.time()
+gradient_descent_time = t1-t0
 
 
+######################
+os.makedirs(os.path.join(out_path,'images'), exist_ok=True)
+os.makedirs(os.path.join(out_path,'lights'), exist_ok=True)
+os.makedirs(os.path.join(out_path,'diags'), exist_ok=True)
+os.makedirs(os.path.join(out_path,'result'), exist_ok=True)
 
-
+numpy.savez(os.path.join(out_path,'result','light_estimation.npz'), L0=L0,rho=rho,relative_grid_u = relative_grid_u, relative_grid_v = relative_grid_v)
 
 max_rho = jax.numpy.maximum(jax.numpy.max(rho),jax.numpy.max(rho_init))
 max_flux = jax.numpy.max(vector_tools.norm_vector(L0, meta_parameters['model']['epsilon'])[0])
-IO.draw_grid(IO.add_grey(IO.array_to_image(vector_tools.build_masked(mask,I[:,:,0]))),grid[1],grid[0]).save(os.path.join(out_path,'grid.png'))
-IO.crop_mask(IO.array_to_image(vector_tools.build_masked(mask,jax.numpy.mean(validity_mask,axis=-1))),mask).save(os.path.join(out_path,'validity.png'))
-IO.crop_mask(IO.array_to_image(vector_tools.build_masked(mask,rho_init/max_rho)),mask).save(os.path.join(out_path,'rho_init.png'))
-IO.crop_mask(IO.array_to_image(vector_tools.build_masked(mask,rho/max_rho)),mask).save(os.path.join(out_path,'rho_result.png'))
-IO.plot_losses_with_sliding_mean(losses,os.path.join(out_path,'losses.png'))
-os.makedirs(os.path.join(out_path,'images'), exist_ok=True)
-os.makedirs(os.path.join(out_path,'lights'), exist_ok=True)
+IO.draw_grid(IO.add_grey(IO.array_to_image(images_list[0]),jax.numpy.logical_not(mask)),grid[1],grid[0]).save(os.path.join(out_path,'diags','grid.png'))
+IO.crop_mask(IO.array_to_image(vector_tools.build_masked(mask,jax.numpy.mean(validity_mask,axis=-1))),mask).save(os.path.join(out_path,'diags','validity.png'))
+IO.crop_mask(IO.array_to_image(vector_tools.build_masked(mask,rho_init/max_rho)),mask).save(os.path.join(out_path,'diags','rho_init.png'))
+IO.crop_mask(IO.array_to_image(vector_tools.build_masked(mask,rho/max_rho)),mask).save(os.path.join(out_path,'diags','rho_result.png'))
+IO.plot_losses_with_sliding_mean(losses,os.path.join(out_path,'diags','losses.png'))
+with open(os.path.join(out_path,'diags','times.txt'), "w") as file:
+        file.write("loading time:          {:10.5f}\n".format(loading_time))
+        file.write("preparation time:      {:10.5f}\n".format(preparation_time))
+        file.write("first estimation time: {:10.5f}\n".format(first_estimation_time))
+        file.write("gradient descent time: {:10.5f}\n".format(gradient_descent_time))
+
+
 for i, file in enumerate(map(lambda p : os.path.basename(p),images_files_list)):
     validity = vector_tools.build_masked(mask,validity_mask[:,i])
     hashmask = jax.numpy.logical_and(jax.numpy.logical_not(validity),mask)
