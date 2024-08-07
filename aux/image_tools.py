@@ -1,65 +1,8 @@
+from PIL import Image, ImageDraw
 import numpy
-from PIL import Image, ImageDraw, ImageOps
 
-import matplotlib.pyplot as plt
 
-def array_to_image(array):
-    image_object = Image.fromarray(numpy.uint8(255.0 * array))
-    return image_object
-
-def image_to_array(image_object):
-    array =  numpy.asarray(image_object)/ 255.0
-    return array
-
-def r3_to_rgb(r3):
-    rgb = 0.5 * (numpy.clip(r3,-1,1) + 1)
-    return rgb
-
-def rgb_to_r3(rgb):
-    r3 = (2.0 * numpy.clip(rgb,0,1)) - 1.0
-    return r3
-
-def to_mask(data):
-    if numpy.ndim(data) == 2:
-        return data>0
-    else:
-        return numpy.mean(data[:, :, :3], axis=-1) > 0.5
-
-def plot_losses_with_sliding_mean(losses, filename):
-    """
-    Plots the losses with a sliding mean and saves the plot to a file.
-    
-    Parameters:
-    losses (list or numpy array): Array of loss values.
-    filename (str): The filename to save the plot.
-    """
-    # Convert losses to numpy array if it's not already
-    losses = numpy.array(losses)
-    
-    # Calculate the sliding mean with a window of 10% of the data length
-    window_size = max(1, int(len(losses) * 0.02))
-    sliding_mean = numpy.convolve(losses, numpy.ones(window_size)/window_size, mode='valid')
-    
-    # Create the plot
-    plt.figure(figsize=(10, 6))
-    
-    # Plot the losses
-    plt.plot(losses, label='Losses', color='blue')
-    
-    # Plot the sliding mean
-    shift = int((window_size+1)/2)
-    plt.plot(range(shift, sliding_mean.shape[0] + shift), sliding_mean, label=f'Sliding Mean (window = {window_size})', linestyle='--', color='orange')
-    
-    # Annotate the axes
-    plt.xlabel('Iterations')
-    plt.ylabel('Loss')
-    plt.title('Losses and Sliding Mean Over Iterations')
-    plt.legend()
-    plt.grid(True)
-    
-    # Save the plot to a file
-    plt.savefig(filename)
-    plt.close()
+from aux import IO
 
 
 def draw_grid(image, x_graduations, y_graduations):
@@ -97,7 +40,7 @@ def hash_image(image, binary_mask):
     for y in range(0, height, spacing):
         draw.line((0, y, width, y), fill=(255, 0, 0, 80), width=thickness)
 
-    hashed_mask = Image.composite(hashed_mask,Image.new('RGBA', image.size, (0, 0, 0, 0)),array_to_image(binary_mask).convert('L'))
+    hashed_mask = Image.composite(hashed_mask,Image.new('RGBA', image.size, (0, 0, 0, 0)),IO.array_to_image(binary_mask).convert('L'))
 
     # Overlay the hashed mask onto the original image
     combined_image = Image.alpha_composite(image.convert('RGBA'), hashed_mask)
@@ -112,7 +55,7 @@ def crop_mask(image, mask):
 def add_grey(image, binary_mask):
     grey_overlay = Image.new('RGBA', image.size, (128, 128, 128, 128))
     transparent_overlay = Image.new('RGBA', image.size, (0, 0, 0, 0))
-    overlay = Image.composite(grey_overlay,transparent_overlay,array_to_image(binary_mask).convert('L'))
+    overlay = Image.composite(grey_overlay,transparent_overlay,IO.array_to_image(binary_mask).convert('L'))
     grey_image = Image.alpha_composite(image.convert('RGBA'), overlay)
     return grey_image
 
