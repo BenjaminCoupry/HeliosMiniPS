@@ -4,7 +4,7 @@ import functools
 
 
 @functools.partial(
-    jax.jit, static_argnames=["optimizer", "value_and_grad", "iterations"]
+    jax.jit, static_argnames=["optimizer", "value_and_grad", "iterations", "callback"]
 )
 def gradient_descent(
     optimizer,
@@ -13,6 +13,7 @@ def gradient_descent(
     refreshed_parameters,
     iterations,
     unroll=10,
+    callback = None,
     **kwargs
 ):
     """
@@ -59,7 +60,8 @@ def gradient_descent(
         updates, opt_state = optimizer.update(grad, opt_state)
         # Apply the updates to the parameters.
         parameters = optax.apply_updates(parameters, updates)
-        jax.lax.cond(jax.numpy.mod(i,100) == 0, lambda i, value : jax.debug.print("i: {}, loss: {}", i, value), lambda i, value : None, i, value)
+        if callback is not None:
+            jax.lax.cond(jax.numpy.mod(i,100) == 0, lambda i, value : jax.debug.callback(callback, i, value), lambda i, value : None, i, value)
         return (opt_state, parameters, refreshed_parameters, losses)
 
     # Initialize the optimizer state.
