@@ -27,9 +27,9 @@ def preliminary_estimation(N, I, grid):
     L0_init = jax.numpy.zeros((jax.numpy.size(grid[0]),jax.numpy.size(grid[1]),nl,normdim)).at[...,:,:].set(L_lstsq)
     return rho_init, L0_init
 
-def gradient_descent(L0_init, rho_init, mask, N, I, validity_mask, grid, meta_parameters, seed):
+def gradient_descent(L0_init, rho_init, mask, N, I, validity_mask, grid, meta_parameters):
     npix = I.shape[0]
-    rng = jax.random.PRNGKey(seed)
+    rng = jax.random.PRNGKey(meta_parameters['compute']['seed'])
     (u_mask, v_mask) = jax.numpy.where(mask)
     optimizer = optax.adam(meta_parameters['learning']['learning_rate'])
     kwargs = {'N':N, 'I':I, 'validity_mask':validity_mask[:,None,:],'grid':grid, 'u_mask':u_mask, 'v_mask':v_mask, 'epsilon': meta_parameters['model']['epsilon'], 'delta':meta_parameters['model']['delta']}
@@ -38,14 +38,14 @@ def gradient_descent(L0_init, rho_init, mask, N, I, validity_mask, grid, meta_pa
     return (L0,rho), losses 
 
  
-def process_data(mask, N, I, meta_parameters, seed):
+def process_data(mask, N, I, meta_parameters):
     t0 = time.time()
     grid, relative_grid = prepare_grid(mask,meta_parameters)
     validity_mask = build_validity_mask(I, meta_parameters)
     t1 = time.time()
     rho_init, L0_init = preliminary_estimation(N, I, grid)
     t2 = time.time()
-    (L0,rho), losses = gradient_descent(L0_init, rho_init, mask, N, I, validity_mask, grid, meta_parameters, seed)
+    (L0,rho), losses = gradient_descent(L0_init, rho_init, mask, N, I, validity_mask, grid, meta_parameters)
     t3 = time.time()
     preparation_time, first_estimation_time, gradient_descent_time = t1-t0,t2-t1,t3-t2
     processing_times = preparation_time, first_estimation_time, gradient_descent_time
