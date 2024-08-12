@@ -20,7 +20,7 @@ def load_data(parameters_path, images_path, normals_path, mask_path):
     t0 = time.time()
     with open(parameters_path, 'r') as file:
         meta_parameters = yaml.safe_load(file)
-    images_files_list = glob.glob(images_path)
+    images_files_list = sorted(glob.glob(images_path))
     images_names = list(map(lambda p : os.path.basename(p),images_files_list))
     mask = IO.load_image(glob.glob(mask_path)[0])>0
     stride = compute_stride(meta_parameters['compute']['max_pixels'], len(images_files_list), numpy.count_nonzero(mask))
