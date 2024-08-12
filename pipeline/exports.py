@@ -12,10 +12,10 @@ from heliosmini import model
 
 
 
-def export_result(out_path, L0, rho, relative_grid):
+def export_result(out_path, L0, rho, relative_grid, images_names):
     os.makedirs(os.path.join(out_path,'result'), exist_ok=True)
     relative_grid_u, relative_grid_v = relative_grid
-    numpy.savez(os.path.join(out_path,'result','light_estimation.npz'), L0=L0,rho=rho,relative_grid_u = relative_grid_u, relative_grid_v = relative_grid_v)
+    numpy.savez(os.path.join(out_path,'result','light_estimation.npz'), L0=L0,rho=rho,relative_grid_u = relative_grid_u, relative_grid_v = relative_grid_v, images_names = numpy.asarray(images_names,dtype=str))
 
 def export_diags(out_path, rho, rho_init, first_image, mask, validity_mask, grid, losses, loading_time, preparation_time, first_estimation_time, gradient_descent_time):
     os.makedirs(os.path.join(out_path,'diags'), exist_ok=True)
@@ -52,7 +52,7 @@ def export_lights_and_images(out_path, rho, N,I, mask, validity_mask, images_nam
 
 def export(out_path, L0, N, I, rho, mask, rho_init, first_image, validity_mask, grid, losses, images_names, relative_grid, meta_parameters, times):
     loading_time, preparation_time, first_estimation_time, gradient_descent_time = times
-    export_result(out_path, L0, rho, relative_grid)
+    export_result(out_path, L0, rho, relative_grid, images_names)
     export_diags(out_path, rho, rho_init, first_image, mask, validity_mask, grid, losses, loading_time, preparation_time, first_estimation_time, gradient_descent_time)
     export_lights_and_images(out_path, rho, N,I, mask, validity_mask, images_names, grid, L0, meta_parameters)
 
