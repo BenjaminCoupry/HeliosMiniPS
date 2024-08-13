@@ -14,13 +14,21 @@ from heliosmini import model
 
 def export_result(out_path, L0, rho, relative_grid, images_names):
     os.makedirs(os.path.join(out_path,'result'), exist_ok=True)
-    relative_grid_u, relative_grid_v = relative_grid
-    numpy.savez(os.path.join(out_path,'result','light_estimation.npz'), L0=L0,rho=rho,relative_grid_u = relative_grid_u, relative_grid_v = relative_grid_v, images_names = numpy.asarray(images_names,dtype=str))
+    if relative_grid is not None:
+        relative_grid_u, relative_grid_v = relative_grid
+        numpy.savez(os.path.join(out_path,'result','light_estimation.npz'), L0=L0,rho=rho,relative_grid_u = relative_grid_u, relative_grid_v = relative_grid_v, images_names = numpy.asarray(images_names,dtype=str))
+    else:
+        str_L0 = numpy.asarray(L0).astype(str)
+        X = numpy.concatenate([numpy.asarray(images_names,dtype=str)[:,None],str_L0],axis=-1)
+        numpy.savetxt(os.path.join(out_path,'result','light_estimation.lp'), X, fmt = '%s', header = str(len(images_names)), delimiter = ' ', comments='')
 
 def export_diags(out_path, rho, rho_init, first_image, mask, validity_mask, grid, losses, loading_time, preparation_time, first_estimation_time, gradient_descent_time):
     os.makedirs(os.path.join(out_path,'diags'), exist_ok=True)
     max_rho = jax.numpy.maximum(jax.numpy.max(rho),jax.numpy.max(rho_init))
-    image_tools.draw_grid(image_tools.add_grey(IO.array_to_image(first_image),jax.numpy.logical_not(mask)),grid[1],grid[0]).save(os.path.join(out_path,'diags','grid.png'))
+    if grid is not None:
+        image_tools.draw_grid(image_tools.add_grey(IO.array_to_image(first_image),jax.numpy.logical_not(mask)),grid[1],grid[0]).save(os.path.join(out_path,'diags','grid.png'))
+    else:
+        image_tools.add_grey(IO.array_to_image(first_image),jax.numpy.logical_not(mask)).save(os.path.join(out_path,'diags','grid.png'))
     image_tools.crop_mask(IO.array_to_image(vector_tools.build_masked(mask,jax.numpy.mean(validity_mask,axis=-1))),mask).save(os.path.join(out_path,'diags','validity.png'))
     image_tools.crop_mask(IO.array_to_image(vector_tools.build_masked(mask,rho_init/max_rho)),mask).save(os.path.join(out_path,'diags','rho_init.png'))
     image_tools.crop_mask(IO.array_to_image(vector_tools.build_masked(mask,rho/max_rho)),mask).save(os.path.join(out_path,'diags','rho_result.png'))
@@ -36,8 +44,10 @@ def export_lights_and_images(out_path, rho, N,I, mask, validity_mask, images_nam
     os.makedirs(os.path.join(out_path,'lights'), exist_ok=True)
     (u_mask, v_mask) = jax.numpy.where(mask)
     max_flux = jax.numpy.max(vector_tools.norm_vector(L0, meta_parameters['model']['epsilon'])[0])
+    if grid is None:
+        L0 = L0[None,...]
     for i, file in enumerate(images_names):
-        Lmap = vector_tools.vector_field_interpolator(L0[:,:,i,:],grid,meta_parameters['model']['epsilon'])((u_mask,v_mask))
+        Lmap = vector_tools.vector_field_interpolator(L0[...,i,:],grid,meta_parameters['model']['epsilon'])((u_mask,v_mask))
         flux, direction = vector_tools.norm_vector(Lmap,meta_parameters['model']['epsilon'])
         image_model = vector_tools.build_masked(mask,model.rendering(rho,Lmap[:,None,:],N)[:,:,0])
         image_ref = vector_tools.build_masked(mask,I[:,:,i])

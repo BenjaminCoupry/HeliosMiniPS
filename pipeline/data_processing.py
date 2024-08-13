@@ -12,8 +12,13 @@ from heliosmini import grids
 
 def prepare_grid(mask,meta_parameters):
     (nu, nv) = mask.shape
-    grid = grids.grid_over_mask(mask,meta_parameters['model']['light_control_points'])
-    relative_grid= grid[0]/nu, grid[1]/nv
+    light_control_points = meta_parameters['model']['light_control_points']
+    if light_control_points >0:
+        grid = grids.grid_over_mask(mask,light_control_points)
+        relative_grid= grid[0]/nu, grid[1]/nv
+    else:
+        grid = None
+        relative_grid = None
     return grid, relative_grid
 
 def build_validity_mask(I, meta_parameters):
@@ -25,7 +30,10 @@ def preliminary_estimation(N, I, grid):
     nl, normdim = I.shape[-1], N.shape[-1]
     rho_init = jax.numpy.median(I,axis=-1)
     L_lstsq = least_squares.quadratic_light(rho_init,N,I)
-    L0_init = jax.numpy.zeros((jax.numpy.size(grid[0]),jax.numpy.size(grid[1]),nl,normdim)).at[...,:,:].set(L_lstsq)
+    if grid is not None:
+        L0_init = jax.numpy.zeros((jax.numpy.size(grid[0]),jax.numpy.size(grid[1]),nl,normdim)).at[...,:,:].set(L_lstsq)
+    else:
+        L0_init = L_lstsq
     return rho_init, L0_init
 
 def gradient_descent(L0_init, rho_init, mask, N, I, validity_mask, grid, meta_parameters):

@@ -38,18 +38,23 @@ def vector_field_interpolator(X, grid, epsilon):
     Returns:
         lambda: interpolator
     """
-    # Normalize the initial light vector field
-    phi, D = norm_vector(X, epsilon)
+    if grid is not None:
+        # Normalize the initial light vector field
+        phi, D = norm_vector(X, epsilon)
 
-    # Create interpolators for the norm and direction
-    i_phi = jax.scipy.interpolate.RegularGridInterpolator(grid, phi)
-    i_D = jax.scipy.interpolate.RegularGridInterpolator(grid, D)
+        # Create interpolators for the norm and direction
+        i_phi = jax.scipy.interpolate.RegularGridInterpolator(grid, phi)
+        i_D = jax.scipy.interpolate.RegularGridInterpolator(grid, D)
 
-    # Re-normalize the interpolated direction and scale by the interpolated norm
-    def interpolator(coords):
-        return norm_vector(i_D(coords), epsilon)[1] * jax.numpy.expand_dims(
-            i_phi(coords), axis=-1
-        )
+        # Re-normalize the interpolated direction and scale by the interpolated norm
+        def interpolator(coords):
+            return norm_vector(i_D(coords), epsilon)[1] * jax.numpy.expand_dims(
+                i_phi(coords), axis=-1
+            )
+    else:
+        def interpolator(coords):
+            return X
+
 
     return interpolator
 
