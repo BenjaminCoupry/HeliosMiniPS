@@ -43,7 +43,7 @@ def gradient_descent(L0_init, rho_init, mask, N, I, validity_mask, grid, meta_pa
     (u_mask, v_mask) = jax.numpy.where(mask)
     optimizer = optax.adam(meta_parameters['learning']['learning_rate'])
     kwargs = {'N':N, 'I':I, 'validity_mask':validity_mask[:,None,:],'grid':grid, 'u_mask':u_mask, 'v_mask':v_mask, 'epsilon': meta_parameters['model']['epsilon'], 'delta':meta_parameters['model']['delta']}
-    partial_value_and_grad = functools.partial(model.stochastic_value_and_grad,npix= npix, batch_size=meta_parameters['learning']['batch_size'])
+    partial_value_and_grad = functools.partial(model.stochastic_value_and_grad,npix= npix, batch_size=min(npix,meta_parameters['learning']['batch_size']))
     progress_bar = None
     with tqdm.tqdm(total=meta_parameters['learning']['steps'], desc='Descent (-.--e---)') as progress_bar:
         def callback(i, loss):
