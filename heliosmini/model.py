@@ -23,7 +23,8 @@ def rendering(rho, L, N):
 def stochastic_value_and_grad(parameters, refreshed_parameters, N, I, validity_mask, grid, u_mask, v_mask, npix, epsilon, delta, batch_size):
     def loss(parameters, N, I, validity_mask, grid, u_mask, v_mask, epsilon, delta):
         (L0, rho) = parameters
-        Lmap = vector_tools.vector_field_interpolator(L0,grid,epsilon)((u_mask[batch],v_mask[batch]))
+        mean_norm = jax.numpy.mean(vector_tools.norm_vector(L0, epsilon)[0],axis=-1)
+        Lmap = vector_tools.vector_field_interpolator(L0/mean_norm[...,None,None],grid,epsilon)((u_mask[batch],v_mask[batch]))
         lambertian_model = rendering(rho[batch], Lmap, N[batch])
         value = vector_tools.masked_huber_loss(lambertian_model,I[batch],delta,validity_mask[batch])
         return value

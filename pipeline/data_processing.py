@@ -8,6 +8,7 @@ from heliosmini import least_squares
 from heliosmini import model
 from heliosmini import gradient
 from heliosmini import grids
+from heliosmini import vector_tools
 
 
 def prepare_grid(mask,meta_parameters):
@@ -53,6 +54,8 @@ def gradient_descent(L0_init, rho_init, mask, N, I, validity_mask, grid, meta_pa
             progress_bar.desc = f'Gradient Descent ({float(loss):.2e})'
             progress_bar.refresh()
         (L0,rho), (rng,), losses = gradient.gradient_descent(optimizer, partial_value_and_grad, (L0_init,rho_init), (rng,), meta_parameters['learning']['steps'],callback=callback, **kwargs)
+    mean_norm = jax.numpy.mean(vector_tools.norm_vector(L0, meta_parameters['model']['epsilon'])[0],axis=-1)
+    L0 = L0/mean_norm[...,None,None]
     return (L0,rho), losses 
 
  
