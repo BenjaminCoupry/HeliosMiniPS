@@ -20,16 +20,14 @@ def rendering(rho, L, N):
     )
     return render
 
-def stochastic_value_and_grad(parameters, refreshed_parameters, N, I, validity_mask, grid, u_mask, v_mask, npix, epsilon, delta, batch_size):
-    def loss(parameters, N, I, validity_mask, grid, u_mask, v_mask, epsilon, delta):
-        (L0, rho) = parameters
-        mean_norm = jax.numpy.mean(vector_tools.norm_vector(L0, epsilon)[0],axis=-1)
-        Lmap = vector_tools.vector_field_interpolator(L0/mean_norm[...,None,None],grid,epsilon)((u_mask[batch],v_mask[batch]))
-        lambertian_model = rendering(rho[batch], Lmap, N[batch])
-        value = vector_tools.masked_huber_loss(lambertian_model,I[batch],delta,validity_mask[batch])
-        return value
-    (rng,) = refreshed_parameters
-    key,rng = jax.random.split(rng)
-    batch = jax.random.choice(key, npix, (batch_size,), replace=False)
-    value, grad = jax.value_and_grad(loss)(parameters, N, I, validity_mask, grid, u_mask, v_mask, epsilon, delta)
-    return value, grad, (rng,)
+def loss(parameters, N, I, validity_mask, grid, u_mask, v_mask, epsilon, delta, batch):
+    (L0, rho) = parameters
+    mean_norm = jax.numpy.mean(vector_tools.norm_vector(L0, epsilon)[0],axis=-1)
+    normalized_L0 = L0/mean_norm[...,None,None]
+    if grid is not None:
+        Lmap = vector_tools.vector_field_interpolator(normalized_L0,grid,epsilon)((u_mask[batch],v_mask[batch]))
+    else:
+        Lmap = normalized_L0
+    lambertian_model = rendering(rho[batch], Lmap, N[batch])
+    value = vector_tools.masked_huber_loss(lambertian_model,I[batch],delta,validity_mask[batch])
+    return value

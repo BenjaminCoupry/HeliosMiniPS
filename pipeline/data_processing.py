@@ -37,15 +37,21 @@ def preliminary_estimation(N, I, grid):
         L0_init = L_lstsq
     return rho_init, L0_init
 
+def get_batch_feeder(npix,batch_size):
+    def feeder(parameters, feeder_state):
+        key,feeder_state = jax.random.split(feeder_state)
+        batch = jax.random.choice(key, npix, (batch_size,), replace=False)
+        gradient_args = {'batch':batch}
+        return gradient_args, feeder_state
+    return feeder
+
 def gradient_descent(L0_init, rho_init, mask, N, I, validity_mask, grid, meta_parameters):
-    callback = None
     npix = I.shape[0]
     rng = jax.random.PRNGKey(meta_parameters['compute']['seed'])
     (u_mask, v_mask) = jax.numpy.where(mask)
     optimizer = optax.adam(meta_parameters['learning']['learning_rate'])
     kwargs = {'N':N, 'I':I, 'validity_mask':validity_mask[:,None,:],'grid':grid, 'u_mask':u_mask, 'v_mask':v_mask, 'epsilon': meta_parameters['model']['epsilon'], 'delta':meta_parameters['model']['delta']}
-    partial_value_and_grad = functools.partial(model.stochastic_value_and_grad,npix= npix, batch_size=min(npix,meta_parameters['learning']['batch_size']))
-    progress_bar = None
+    feeder = get_batch_feeder(npix,min(npix,meta_parameters['learning']['batch_size']))
     with tqdm.tqdm(total=meta_parameters['learning']['steps'], desc='Descent (-.--e---)') as progress_bar:
         def callback(i, loss):
             if int(i)==0:
@@ -53,7 +59,7 @@ def gradient_descent(L0_init, rho_init, mask, N, I, validity_mask, grid, meta_pa
             progress_bar.n = int(i)
             progress_bar.desc = f'Gradient Descent ({float(loss):.2e})'
             progress_bar.refresh()
-        (L0,rho), (rng,), losses = gradient.gradient_descent(optimizer, partial_value_and_grad, (L0_init,rho_init), (rng,), meta_parameters['learning']['steps'],callback=callback, **kwargs)
+        (L0,rho), losses = gradient.gradient_descent(optimizer, model.loss, feeder, (L0_init,rho_init), rng, meta_parameters['learning']['steps'],callback=callback, **kwargs)
     mean_norm = jax.numpy.mean(vector_tools.norm_vector(L0, meta_parameters['model']['epsilon'])[0],axis=-1)
     L0 = L0/mean_norm[...,None,None]
     return (L0,rho), losses 

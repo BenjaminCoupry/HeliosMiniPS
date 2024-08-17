@@ -4,13 +4,14 @@ import functools
 
 
 @functools.partial(
-    jax.jit, static_argnames=["optimizer", "value_and_grad", "iterations", "callback"]
+    jax.jit, static_argnames=["optimizer", "loss", "feeder", "iterations", "callback"]
 )
 def gradient_descent(
     optimizer,
-    value_and_grad,
+    loss,
+    feeder,
     parameters,
-    refreshed_parameters,
+    feeder_state,
     iterations,
     unroll=10,
     callback = None,
@@ -21,7 +22,7 @@ def gradient_descent(
 
     Args:
         optimizer: An Optax optimizer instance used for updating parameters.
-        value_and_grad: A function that computes the value and gradient of the objective function.
+        loss: A function that computes the value of the objective function.
         parameters: Initial parameters for the optimization.
         refreshed_parameters: Additional parameters that might be refreshed or updated during optimization.
         iterations: Number of iterations to run the gradient descent.
@@ -35,7 +36,7 @@ def gradient_descent(
         - Losses recorded during each iteration.
     """
     # Create a partial function for computing value and gradient with additional arguments.
-    partial_gradient = functools.partial(value_and_grad, **kwargs)
+    partial_gradient = functools.partial(jax.value_and_grad(loss), **kwargs)
 
     def body_fun(i, val):
         """
@@ -49,10 +50,12 @@ def gradient_descent(
             A tuple with updated optimizer state, parameters, refreshed parameters, and losses.
         """
         
-        opt_state, parameters, refreshed_parameters, losses = val
+        opt_state, parameters, feeder_state, losses = val
+        #compute the gradient args with the feeder
+        gradient_args, feeder_state = feeder(parameters, feeder_state)
         # Compute the value and gradient of the objective function.
-        value, grad, refreshed_parameters = partial_gradient(
-            parameters, refreshed_parameters
+        value, grad = partial_gradient(
+            parameters, **gradient_args
         )
         # Update the losses array with the current value.
         losses = losses.at[i].set(value)
@@ -62,7 +65,7 @@ def gradient_descent(
         parameters = optax.apply_updates(parameters, updates)
         if callback is not None:
             jax.lax.cond(jax.numpy.mod(i,100) == 0, lambda i, value : jax.debug.callback(callback, i, value), lambda i, value : None, i, value)
-        return (opt_state, parameters, refreshed_parameters, losses)
+        return (opt_state, parameters, feeder_state, losses)
 
     # Initialize the optimizer state.
     opt_state = optimizer.init(parameters)
@@ -70,12 +73,12 @@ def gradient_descent(
     losses = jax.numpy.zeros((iterations,))
 
     # Run the optimization loop for the specified number of iterations.
-    _, parameters, refreshed_parameters, losses = jax.lax.fori_loop(
+    _, parameters, _, losses = jax.lax.fori_loop(
         0,
         iterations,
         body_fun,
-        (opt_state, parameters, refreshed_parameters, losses),
+        (opt_state, parameters, feeder_state, losses),
         unroll=unroll,
     )
 
-    return parameters, refreshed_parameters, losses
+    return parameters, losses
