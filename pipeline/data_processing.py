@@ -60,9 +60,11 @@ def gradient_descent(L0_init, rho_init, mask, N, I, validity_mask, grid, meta_pa
             progress_bar.desc = f'Gradient Descent ({float(loss):.2e})'
             progress_bar.refresh()
         (L0,rho), losses = gradient.gradient_descent(optimizer, model.loss, feeder, (L0_init,rho_init), rng, meta_parameters['learning']['steps'],callback=callback, **kwargs)
+    max_rho = jax.numpy.max(rho)
     mean_norm = jax.numpy.mean(vector_tools.norm_vector(L0, meta_parameters['model']['epsilon'])[0],axis=-1)
-    L0 = L0/mean_norm[...,None,None]
-    return (L0,rho), losses 
+    L0_scaled = L0*max_rho/mean_norm[...,None,None]
+    rho_scaled = rho/max_rho
+    return (L0_scaled,rho_scaled), losses 
 
  
 def process_data(mask, N, I, meta_parameters):
