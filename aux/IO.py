@@ -2,13 +2,22 @@ import numpy
 from PIL import Image
 import tqdm
 
-def array_to_image(array):
-    image_object = Image.fromarray(numpy.uint8(255.0 * array))
+def array_to_image(array, bit_depth = 8):
+    sacled_array = (numpy.power(2,bit_depth) - 1) * numpy.clip(array,0,1)
+    if bit_depth == 8:
+        image_object = Image.fromarray(numpy.uint8(sacled_array))
+    if bit_depth == 16:
+        image_object = Image.fromarray(numpy.uint16(sacled_array))
     return image_object
 
 def image_to_array(image_object):
-    array =  numpy.asarray(image_object)/ 255.0
-    return array
+    array =  numpy.asarray(image_object)
+    if array.dtype == numpy.uint8:
+        bit_depth = 8
+    elif array.dtype == numpy.uint16:
+        bit_depth = 16
+    scaled_array = array/(numpy.power(2,bit_depth) - 1)
+    return scaled_array
 
 def load_image(path, stride=1 ,mask = ...):
     with Image.open(path) as image:
