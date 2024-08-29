@@ -3,7 +3,7 @@ learning:
     batch_size: 1000
     learning_rate: 0.0002
 model:
-    light_control_points: 45 #0 for global lighting
+    light_control_points: 15 #0 for global lighting
     epsilon: 0.00001
     delta: 0.05
     validity_range:

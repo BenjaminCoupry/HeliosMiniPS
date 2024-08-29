@@ -1,5 +1,5 @@
 import jax
-
+import optax
 from heliosmini import vector_tools
 
 
@@ -20,18 +20,18 @@ def rendering(rho, L, N):
     )
     return render
 
-def get_light_map(L0, grid, u_mask, v_mask, batch, epsilon):
+def get_light_map(L0, grid, u_mask, v_mask, epsilon):
     mean_norm = jax.numpy.mean(vector_tools.norm_vector(L0, epsilon)[0],axis=-1)
     normalized_L0 = L0/mean_norm[...,None,None]
-    if grid is not None:
-        Lmap = vector_tools.vector_field_interpolator(normalized_L0,grid,epsilon)((u_mask[batch],v_mask[batch]))
+    if len(grid) > 0:
+        Lmap = vector_tools.vector_field_interpolator(normalized_L0,grid,epsilon)((u_mask,v_mask))
     else:
         Lmap = normalized_L0
     return Lmap
 
-def loss(parameters, N, I, validity_mask, grid, u_mask, v_mask, epsilon, delta, batch):
-    (L0, rho) = parameters
-    Lmap = get_light_map(L0, grid, u_mask, v_mask, batch, epsilon)
-    lambertian_model = rendering(rho[batch], Lmap, N[batch])
-    value = vector_tools.masked_huber_loss(lambertian_model,I[batch],delta,validity_mask[batch])
-    return value
+
+def model(L0, rho, grid, N, u_mask, v_mask, epsilon):
+    Lmap = get_light_map(L0, grid, u_mask, v_mask, epsilon)
+    lambertian_model = rendering(rho, Lmap, N)
+    return lambertian_model
+

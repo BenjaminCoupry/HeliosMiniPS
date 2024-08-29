@@ -42,8 +42,8 @@ def vector_field_interpolator(X, grid, epsilon):
     phi, D = norm_vector(X, epsilon)
 
     # Create interpolators for the norm and direction
-    i_phi = jax.scipy.interpolate.RegularGridInterpolator(grid, phi)
-    i_D = jax.scipy.interpolate.RegularGridInterpolator(grid, D)
+    i_phi = jax.scipy.interpolate.RegularGridInterpolator(grid, phi, fill_value = 0)
+    i_D = jax.scipy.interpolate.RegularGridInterpolator(grid, D, fill_value = 0)
 
     # Re-normalize the interpolated direction and scale by the interpolated norm
     def interpolator(coords):
@@ -52,29 +52,6 @@ def vector_field_interpolator(X, grid, epsilon):
         )
     
     return interpolator
-
-
-def masked_huber_loss(vector, reference, delta, mask):
-    """
-    Calculate the masked Huber loss between the predicted vector and the reference target.
-
-    Parameters:
-    vector (Array): Predicted values.
-    reference (Array): True values or target values to compare against.
-    delta (float): The point where the Huber loss function changes from a quadratic to a linear loss.
-    mask (Array): A boolean array where True values indicate the elements to include in the loss computation.
-
-    Returns:
-    float: The average Huber loss over the elements specified by the mask.
-    """
-    # Compute the Huber loss for each element in the vector compared to the reference
-    huber_losses = optax.losses.huber_loss(vector, targets=reference, delta=delta)
-
-    # Sum the Huber losses, considering only the elements specified by the mask
-    masked_loss = jax.numpy.mean(huber_losses, where=mask)
-
-    return masked_loss
-
 
 def norm_vector(X, epsilon):
     """
