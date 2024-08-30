@@ -42,13 +42,25 @@ def get_batch_feeder(npix,batch_size):
         return gradient_args, feeder_state
     return feeder
 
+def split_range(total_size, batch_size):
+    nbatches = jax.numpy.maximum(1,total_size//batch_size)
+    batches = jax.numpy.array_split(jax.numpy.arange(total_size), nbatches)
+    return batches
+
+
+
 def batched_loss(parameters, N, I, validity_mask, u_mask, v_mask, epsilon, batch, loss_function):
     (L0, rho, grid) = parameters
-    lambertian_model = model.model(L0, rho[batch], grid, N[batch], u_mask[batch], v_mask[batch], epsilon)
-    loss_values = loss_function(predictions=lambertian_model,targets=I[batch])
-    masked_loss = jax.numpy.mean(loss_values, where=validity_mask[batch])
-    return masked_loss
+    lambertian_model = model.model(L0, rho[batch], grid, N[batch], u_mask[batch], v_mask[batch], epsilon, normalize=True)[0]
+    loss_value = loss_function(predictions = lambertian_model, targets = I[batch], where = validity_mask[batch])
+    return loss_value
 
+def total_evaluation(L0, rho, grid, N, I, validity_mask, mask, meta_parameters):
+    epsilon, (u_mask, v_mask), selection = meta_parameters['model']['epsilon'], jax.numpy.where(mask), jax.numpy.broadcast_to(validity_mask[:,None,:],I.shape)
+    lambertian_model, Lmap = model.model(L0, rho, grid, N, u_mask, v_mask, epsilon)
+    residuals = jax.numpy.abs(lambertian_model-I)
+    total_error = jax.numpy.mean(residuals[selection]), jax.numpy.median(residuals[selection]), jax.numpy.std(residuals[selection])
+    return residuals, lambertian_model, Lmap, total_error
 
 
 def gradient_descent(L0_init, rho_init, grid_init, mask, N, I, validity_mask, meta_parameters):
@@ -56,8 +68,8 @@ def gradient_descent(L0_init, rho_init, grid_init, mask, N, I, validity_mask, me
     rng = jax.random.PRNGKey(meta_parameters['compute']['seed'])
     (u_mask, v_mask) = jax.numpy.where(mask)
     optimizer = optax.adam(meta_parameters['learning']['learning_rate'])
-    huber = functools.partial(optax.losses.huber_loss,delta=meta_parameters['model']['delta'])
-    batched_huber_loss = functools.partial(batched_loss, loss_function=huber)
+    mean_huber = lambda predictions, targets, where: jax.numpy.mean(optax.huber_loss(predictions = predictions, targets = targets, delta = meta_parameters['model']['delta']), where = where)
+    batched_huber_loss = functools.partial(batched_loss, loss_function=mean_huber)
     kwargs = {'N':N, 'I':I, 'validity_mask':validity_mask[:,None,:], 'u_mask':u_mask, 'v_mask':v_mask, 'epsilon': meta_parameters['model']['epsilon']}
     feeder = get_batch_feeder(npix,min(npix,meta_parameters['learning']['batch_size']))
     with tqdm.tqdm(total=meta_parameters['learning']['steps'], desc='Descent (-.--e---)') as progress_bar:
@@ -69,10 +81,11 @@ def gradient_descent(L0_init, rho_init, grid_init, mask, N, I, validity_mask, me
             progress_bar.refresh()
         (L0, rho, grid), losses = gradient.gradient_descent(optimizer, batched_huber_loss, feeder, (L0_init, rho_init, grid_init), rng, meta_parameters['learning']['steps'],callback=callback, **kwargs)
     max_rho = jax.numpy.max(rho)
-    mean_norm = jax.numpy.mean(vector_tools.norm_vector(L0, meta_parameters['model']['epsilon'])[0],axis=-1)
-    L0_scaled = L0*max_rho/mean_norm[...,None,None]
+    L0_scaled = max_rho*model.normalize_L0(L0, meta_parameters['model']['epsilon'])
     rho_scaled = rho/max_rho
-    return (L0_scaled, rho_scaled, grid), losses 
+    return (L0_scaled, rho_scaled, grid), losses
+
+
  
 def process_data(mask, N, I, meta_parameters):
     t0 = time.time()
@@ -83,6 +96,8 @@ def process_data(mask, N, I, meta_parameters):
     t2 = time.time()
     (L0, rho, grid), losses = gradient_descent(L0_init, rho_init, grid_init, mask, N, I, validity_mask, meta_parameters)
     t3 = time.time()
-    preparation_time, first_estimation_time, gradient_descent_time = t1-t0,t2-t1,t3-t2
-    processing_times = preparation_time, first_estimation_time, gradient_descent_time
-    return rho_init, (L0, rho, grid), losses, validity_mask, processing_times
+    residuals, lambertian_model, Lmap, total_error = total_evaluation(L0, rho, grid, N, I, validity_mask, mask, meta_parameters)
+    t4 = time.time()
+    preparation_time, first_estimation_time, gradient_descent_time, mse_time = t1-t0,t2-t1,t3-t2, t4-t3
+    processing_times = preparation_time, first_estimation_time, gradient_descent_time, mse_time
+    return rho_init, (L0, rho, grid), losses, total_error, validity_mask, residuals, lambertian_model, Lmap, processing_times
