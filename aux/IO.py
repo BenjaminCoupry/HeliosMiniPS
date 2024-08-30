@@ -3,7 +3,7 @@ from PIL import Image
 import tqdm
 
 def array_to_image(array):
-    image_object = Image.fromarray(numpy.uint8(255.0 * array))
+    image_object = Image.fromarray(numpy.uint8(255.0 * numpy.clip(array,0,1)))
     return image_object
 
 def image_to_array(image_object):
