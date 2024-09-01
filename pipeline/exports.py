@@ -22,9 +22,11 @@ def export_result(out_path, L0, rho, grid, images_names, mask):
         X = numpy.concatenate([numpy.asarray(images_names,dtype=str)[:,None],str_L0],axis=-1)
         numpy.savetxt(os.path.join(out_path,'result','light_estimation.lp'), X, fmt = '%s', header = str(len(images_names)), delimiter = ' ', comments='')
 
-def export_diags(out_path, rho, rho_init, first_image, mask, validity_mask, grid, losses, total_error, times):
+def export_diags(out_path, rho, rho_init, first_image, mask, validity_mask, residuals, grid, losses, total_error, times):
     loading_time, preparation_time, first_estimation_time, gradient_descent_time, mse_time = times
     os.makedirs(os.path.join(out_path,'diags'), exist_ok=True)
+    residual_map = jax.numpy.mean(jax.numpy.mean(residuals,axis=-2),axis=-1,where=validity_mask)
+    max_residual = jax.numpy.quantile(residual_map.at[jax.numpy.isnan(residual_map)].set(0),0.95)
     max_rho = jax.numpy.maximum(jax.numpy.max(rho),jax.numpy.max(rho_init))
     if len(grid) > 0:
         image_tools.draw_grid(image_tools.add_grey(IO.array_to_image(first_image),jax.numpy.logical_not(mask)),grid[1],grid[0]).save(os.path.join(out_path,'diags','grid.png'))
@@ -34,6 +36,7 @@ def export_diags(out_path, rho, rho_init, first_image, mask, validity_mask, grid
     image_tools.crop_mask(IO.array_to_image(vector_tools.build_masked(mask,rho_init/max_rho)),mask).save(os.path.join(out_path,'diags','rho_init.png'))
     image_tools.crop_mask(IO.array_to_image(vector_tools.build_masked(mask,rho/max_rho)),mask).save(os.path.join(out_path,'diags','rho_result.png'))
     plots.plot_losses_with_sliding_mean(losses,os.path.join(out_path,'diags','losses.png'))
+    image_tools.crop_mask(IO.array_to_image(vector_tools.build_masked(mask,residual_map/max_residual)),mask).save(os.path.join(out_path,'diags','residual_map.png'))
     IO.print_to_text(os.path.join(out_path,'diags','times.txt'),['loading time         ',
                                                                 'preparation time     ',
                                                                 'first estimation time',
@@ -66,6 +69,6 @@ def export_lights_and_images(out_path, I, mask, validity_mask, residuals, lamber
 
 def export(out_path, L0, I, rho, mask, rho_init, first_image, validity_mask, residuals, lambertian_model, Lmap, grid, losses, total_error, images_names, meta_parameters, times):
     export_result(out_path, L0, rho, grid, images_names, mask)
-    export_diags(out_path, rho, rho_init, first_image, mask, validity_mask, grid, losses, total_error, times)
+    export_diags(out_path, rho, rho_init, first_image, mask, validity_mask, residuals, grid, losses, total_error, times)
     export_lights_and_images(out_path,I, mask, validity_mask, residuals, lambertian_model, Lmap, images_names, meta_parameters)
 
