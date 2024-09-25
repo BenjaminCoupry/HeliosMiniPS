@@ -11,10 +11,10 @@ from heliosmini import grids
 from heliosmini import vector_tools
 
 
-def prepare_grid(mask,meta_parameters):
-    light_control_points = meta_parameters['model']['light_control_points']
-    if light_control_points >0:
-        grid = grids.grid_over_mask(mask,light_control_points)
+def prepare_grid(mask, stride, meta_parameters):
+    light_resolution = meta_parameters['model']['light_resolution']
+    if light_resolution > 0:
+        grid = grids.grid_over_mask(mask, light_resolution/stride)
     else:
         grid = tuple()
     return grid
@@ -87,9 +87,9 @@ def gradient_descent(L0_init, rho_init, grid_init, mask, N, I, validity_mask, me
 
 
  
-def process_data(mask, N, I, meta_parameters):
+def process_data(mask, N, I, stride, meta_parameters):
     t0 = time.time()
-    grid_init = prepare_grid(mask,meta_parameters)
+    grid_init = prepare_grid(mask, stride, meta_parameters)
     validity_mask = build_validity_mask(I, meta_parameters)
     t1 = time.time()
     rho_init, L0_init = preliminary_estimation(N, I, grid_init)

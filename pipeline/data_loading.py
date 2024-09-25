@@ -44,4 +44,4 @@ def load_data(parameters_path, images_path, normals_path, mask_path, black_path)
     I = numpy.maximum(0, I_abs-black)
     t1 = time.time()
     loading_time = t1-t0
-    return images_names, mask, N, I, first_image, meta_parameters, loading_time
+    return stride, images_names, mask, N, I, first_image, meta_parameters, loading_time

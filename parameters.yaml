@@ -1,14 +1,14 @@
 learning:
-    steps: 60000
+    steps: 120000
     batch_size: 1000
     learning_rate: 0.0002
 model:
-    light_control_points: 20 #0 for global lighting
+    light_resolution: 1000 #0 for global lighting
     epsilon: 0.00001
     delta: 0.05
     validity_range:
         min: 0.03
         max: 1
 compute:
-    max_pixels: 10000000
+    max_pixels: 20000000
     seed: 0

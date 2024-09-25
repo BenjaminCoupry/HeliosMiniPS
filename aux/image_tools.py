@@ -12,13 +12,10 @@ def draw_grid(image, x_graduations, y_graduations):
     draw = ImageDraw.Draw(new_image)
     # Get the dimensions of the image
     width, height = image.size
-    w = int(min(width,height)*0.005)
-    # Draw vertical lines
+    w = max(1,int(min(width,height)*0.02))
     for x in x_graduations:
-        draw.line((x, 0, x, height), fill=(0, 0, 255), width=w)
-    # Draw horizontal lines
-    for y in y_graduations:
-        draw.line((0, y, width, y), fill=(0, 0, 255), width=w)
+        for y in y_graduations:
+            draw.ellipse((x-w, y-w, x+w, y+w), fill=(0, 0, 255), outline=(0, 0, 200))
     return new_image
 
 def hash_image(image, binary_mask):
