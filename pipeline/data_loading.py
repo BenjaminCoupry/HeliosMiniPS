@@ -25,7 +25,7 @@ def get_mask(normals_path, mask_path):
     return mask
 
 
-def load_data(parameters_path, images_path, normals_path, mask_path):
+def load_data(parameters_path, images_path, normals_path, mask_path, black_path):
     t0 = time.time()
     with open(parameters_path, 'r') as file:
         meta_parameters = yaml.safe_load(file)
@@ -36,7 +36,12 @@ def load_data(parameters_path, images_path, normals_path, mask_path):
     mask = mask[::stride,::stride]
     first_image = IO.load_image(images_files_list[0],stride=stride)
     N = normalmaps.rgb_to_r3(IO.load_image(glob.glob(normals_path)[0],mask=mask, stride=stride))
-    I = IO.load_image_collection(images_files_list, mask=mask, stride=stride)
+    if black_path is not None:
+        black = IO.load_image(glob.glob(black_path)[0],mask=mask, stride=stride)
+    else:
+        black = 0
+    I_abs = IO.load_image_collection(images_files_list, mask=mask, stride=stride)
+    I = numpy.maximum(0, I_abs-black)
     t1 = time.time()
     loading_time = t1-t0
     return images_names, mask, N, I, first_image, meta_parameters, loading_time
